@@ -9,6 +9,7 @@ pywin32>=306
 
 # LLM
 openai>=1.0.0
+google-generativeai>=0.3.0
 
 # OCR
 easyocr>=1.7.0

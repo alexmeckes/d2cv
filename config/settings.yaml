@@ -56,6 +56,16 @@ llm:
   max_tokens: 500
   cache_evaluations: true
 
+# Gemini Vision settings (recommended for item evaluation)
+gemini:
+  enabled: true
+  model: gemini-1.5-flash
+  # api_key: your-api-key-here  # Or set GEMINI_API_KEY env var
+  use_for_items: true           # Use Gemini for item analysis
+  use_for_stuck: true           # Use Gemini for stuck detection
+  batch_items: true             # Analyze all items in one call
+  cache_responses: true
+
 # Timing (in seconds)
 timing:
   loop_delay: 0.05        # Main loop delay

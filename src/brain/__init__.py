@@ -11,3 +11,7 @@ from .recovery import (
     ErrorRecoverySystem, RecoveryAction, RecoveryContext,
     get_recovery_system
 )
+from .gemini_vision import (
+    GeminiVisionClient, ItemAnalysis, ScreenAnalysis,
+    get_gemini_vision
+)
