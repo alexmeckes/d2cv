@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QGroupBox, QGridLayout, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QProgressBar, QTabWidget,
-    QScrollArea, QSplitter
+    QScrollArea, QSplitter, QComboBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
 from PyQt6.QtGui import QImage, QPixmap, QFont, QColor
@@ -266,6 +266,7 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_timers()
+        self._load_current_build()
 
     def _setup_ui(self):
         """Create the UI layout."""
@@ -289,6 +290,23 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(self.current_run_label)
 
         left_panel.addWidget(status_group)
+
+        # Build selector
+        build_group = QGroupBox("Character Build")
+        build_layout = QVBoxLayout(build_group)
+
+        self.build_combo = QComboBox()
+        self.build_combo.addItem("Blizzard Sorceress", "blizzard")
+        self.build_combo.addItem("Elemental Druid", "elemental_druid")
+        self.build_combo.currentIndexChanged.connect(self._on_build_changed)
+        build_layout.addWidget(self.build_combo)
+
+        # Show current build info
+        self.build_info_label = QLabel("Cold damage - skips cold immunes")
+        self.build_info_label.setStyleSheet("color: #888; font-size: 10px;")
+        build_layout.addWidget(self.build_info_label)
+
+        left_panel.addWidget(build_group)
 
         # Controls
         controls_group = QGroupBox("Controls")
@@ -447,6 +465,61 @@ class MainWindow(QMainWindow):
         self.runtime_seconds += 1
         self.stats_panel.update_stats({"runtime_seconds": self.runtime_seconds})
 
+    def _on_build_changed(self, index: int):
+        """Handle build selection change."""
+        build_id = self.build_combo.currentData()
+
+        # Update info label
+        build_info = {
+            "blizzard": "Cold damage - skips cold immunes",
+            "elemental_druid": "Fire damage - skips fire immunes",
+        }
+        self.build_info_label.setText(build_info.get(build_id, ""))
+
+        # Update config
+        self._save_build_to_config(build_id)
+        self.log(f"Build changed to: {self.build_combo.currentText()}")
+
+    def _save_build_to_config(self, build_id: str):
+        """Save build selection to config file."""
+        import yaml
+        from pathlib import Path
+
+        config_path = Path(__file__).parent.parent.parent / "config" / "settings.yaml"
+
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+
+            # Update build settings
+            if build_id == "elemental_druid":
+                config["character"]["class"] = "druid"
+                config["character"]["build"] = "elemental_druid"
+            else:
+                config["character"]["class"] = "sorceress"
+                config["character"]["build"] = "blizzard"
+
+            with open(config_path, "w") as f:
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        except Exception as e:
+            self.log(f"Failed to save config: {e}")
+
+    def _load_current_build(self):
+        """Load current build from config and set combo box."""
+        try:
+            from src.config import get_config
+            config = get_config()
+            current_build = config.get("character.build", "blizzard")
+
+            # Find and select matching item
+            for i in range(self.build_combo.count()):
+                if self.build_combo.itemData(i) == current_build:
+                    self.build_combo.setCurrentIndex(i)
+                    break
+        except Exception:
+            pass  # Use default
+
     def update_screenshot(self, image: np.ndarray):
         """Update the screenshot preview."""
         # Resize to fit preview
@@ -599,6 +672,25 @@ def run_gui():
             border: 1px solid #555;
             border-radius: 3px;
             text-align: center;
+        }
+        QComboBox {
+            background-color: #3c3c3c;
+            border: 1px solid #555;
+            padding: 6px;
+            border-radius: 4px;
+            min-width: 120px;
+        }
+        QComboBox:hover {
+            background-color: #4a4a4a;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #3c3c3c;
+            border: 1px solid #555;
+            selection-background-color: #555;
         }
     """)
 
