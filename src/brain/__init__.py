@@ -19,3 +19,7 @@ from .combat_advisor import (
     CombatAdvisor, CombatAdvice, CombatAction, ThreatLevel,
     SituationAnalysis, get_combat_advisor
 )
+from .navigation_advisor import (
+    NavigationAdvisor, NavigationAdvice, NavigationTarget,
+    Direction, MapAnalysis, get_navigation_advisor
+)
