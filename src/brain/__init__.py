@@ -7,3 +7,7 @@ from .deliberative import (
 )
 from .item_evaluator import ItemEvaluator, EvaluatedItem
 from .prompts import should_quick_pickup, should_quick_skip
+from .recovery import (
+    ErrorRecoverySystem, RecoveryAction, RecoveryContext,
+    get_recovery_system
+)

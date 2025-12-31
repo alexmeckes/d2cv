@@ -1,11 +1,17 @@
+"""
+Main GUI window for D2CV bot.
+"""
+
 import sys
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QTextEdit, QGroupBox, QGridLayout, QFrame
+    QPushButton, QLabel, QTextEdit, QGroupBox, QGridLayout, QFrame,
+    QTableWidget, QTableWidgetItem, QHeaderView, QProgressBar, QTabWidget,
+    QScrollArea, QSplitter
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
-from PyQt6.QtGui import QImage, QPixmap, QFont
+from PyQt6.QtGui import QImage, QPixmap, QFont, QColor
 import numpy as np
 import cv2
 
@@ -15,6 +21,8 @@ class BotWorker(QThread):
     status_update = pyqtSignal(str)
     screenshot_update = pyqtSignal(np.ndarray)
     stats_update = pyqtSignal(dict)
+    run_complete = pyqtSignal(dict)
+    item_found = pyqtSignal(dict)
 
     def __init__(self):
         super().__init__()
@@ -33,25 +41,228 @@ class BotWorker(QThread):
         self.running = False
 
 
+class RunHistoryWidget(QWidget):
+    """Widget displaying run history."""
+
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Run history table
+        self.table = QTableWidget()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Run", "Status", "Duration", "Items", "Deaths"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
+
+    def add_run(self, run_data: dict):
+        """Add a run to the history."""
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+
+        # Run type
+        self.table.setItem(row, 0, QTableWidgetItem(run_data.get("run_name", "Unknown")))
+
+        # Status
+        status = run_data.get("status", "Unknown")
+        status_item = QTableWidgetItem(status)
+        if status == "COMPLETED":
+            status_item.setForeground(QColor("#33ff33"))
+        elif status in ("FAILED", "ABORTED"):
+            status_item.setForeground(QColor("#ff3333"))
+        self.table.setItem(row, 1, status_item)
+
+        # Duration
+        duration = run_data.get("duration", 0)
+        duration_str = f"{int(duration)}s"
+        self.table.setItem(row, 2, QTableWidgetItem(duration_str))
+
+        # Items
+        items = run_data.get("items_found", 0)
+        self.table.setItem(row, 3, QTableWidgetItem(str(items)))
+
+        # Deaths
+        deaths = run_data.get("deaths", 0)
+        self.table.setItem(row, 4, QTableWidgetItem(str(deaths)))
+
+        # Scroll to latest
+        self.table.scrollToBottom()
+
+
+class ItemsFoundWidget(QWidget):
+    """Widget displaying found items."""
+
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Items table
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Item", "Rarity", "Area", "Action"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
+
+    def add_item(self, item_data: dict):
+        """Add an item to the list."""
+        row = 0  # Insert at top
+        self.table.insertRow(row)
+
+        # Item name
+        name = item_data.get("name", "Unknown")
+        self.table.setItem(row, 0, QTableWidgetItem(name))
+
+        # Rarity with color
+        rarity = item_data.get("rarity", "normal")
+        rarity_item = QTableWidgetItem(rarity.title())
+        rarity_colors = {
+            "unique": "#c7b377",  # Gold
+            "set": "#00ff00",     # Green
+            "rare": "#ffff00",    # Yellow
+            "magic": "#6666ff",   # Blue
+            "rune": "#ffa500",    # Orange
+        }
+        if rarity.lower() in rarity_colors:
+            rarity_item.setForeground(QColor(rarity_colors[rarity.lower()]))
+        self.table.setItem(row, 1, rarity_item)
+
+        # Area
+        area = item_data.get("area", "Unknown")
+        self.table.setItem(row, 2, QTableWidgetItem(area))
+
+        # Action (picked up / skipped)
+        picked = item_data.get("picked_up", True)
+        action = "Picked" if picked else "Skipped"
+        action_item = QTableWidgetItem(action)
+        if picked:
+            action_item.setForeground(QColor("#33ff33"))
+        else:
+            action_item.setForeground(QColor("#ff6666"))
+        self.table.setItem(row, 3, action_item)
+
+        # Limit table size
+        while self.table.rowCount() > 100:
+            self.table.removeRow(self.table.rowCount() - 1)
+
+
+class StatsPanel(QWidget):
+    """Enhanced statistics panel."""
+
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+
+        # Session stats
+        session_group = QGroupBox("Session")
+        session_layout = QGridLayout(session_group)
+
+        self.runtime_label = QLabel("0:00:00")
+        self.runtime_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        session_layout.addWidget(QLabel("Runtime:"), 0, 0)
+        session_layout.addWidget(self.runtime_label, 0, 1)
+
+        self.runs_label = QLabel("0")
+        self.success_label = QLabel("0%")
+        session_layout.addWidget(QLabel("Runs:"), 1, 0)
+        session_layout.addWidget(self.runs_label, 1, 1)
+        session_layout.addWidget(QLabel("Success:"), 2, 0)
+        session_layout.addWidget(self.success_label, 2, 1)
+
+        self.rph_label = QLabel("0.0")
+        session_layout.addWidget(QLabel("Runs/Hour:"), 3, 0)
+        session_layout.addWidget(self.rph_label, 3, 1)
+
+        layout.addWidget(session_group)
+
+        # Item stats
+        items_group = QGroupBox("Items Found")
+        items_layout = QGridLayout(items_group)
+
+        self.unique_label = QLabel("0")
+        self.unique_label.setStyleSheet("color: #c7b377; font-weight: bold;")
+        self.set_label = QLabel("0")
+        self.set_label.setStyleSheet("color: #00ff00; font-weight: bold;")
+        self.rare_label = QLabel("0")
+        self.rare_label.setStyleSheet("color: #ffff00;")
+        self.rune_label = QLabel("0")
+        self.rune_label.setStyleSheet("color: #ffa500; font-weight: bold;")
+
+        items_layout.addWidget(QLabel("Uniques:"), 0, 0)
+        items_layout.addWidget(self.unique_label, 0, 1)
+        items_layout.addWidget(QLabel("Sets:"), 1, 0)
+        items_layout.addWidget(self.set_label, 1, 1)
+        items_layout.addWidget(QLabel("Rares:"), 2, 0)
+        items_layout.addWidget(self.rare_label, 2, 1)
+        items_layout.addWidget(QLabel("Runes:"), 3, 0)
+        items_layout.addWidget(self.rune_label, 3, 1)
+
+        layout.addWidget(items_group)
+
+        # Deaths
+        deaths_group = QGroupBox("Deaths")
+        deaths_layout = QGridLayout(deaths_group)
+
+        self.deaths_label = QLabel("0")
+        self.deaths_label.setFont(QFont("Arial", 14))
+        self.chickens_label = QLabel("0")
+
+        deaths_layout.addWidget(QLabel("Total Deaths:"), 0, 0)
+        deaths_layout.addWidget(self.deaths_label, 0, 1)
+        deaths_layout.addWidget(QLabel("Chickens:"), 1, 0)
+        deaths_layout.addWidget(self.chickens_label, 1, 1)
+
+        layout.addWidget(deaths_group)
+        layout.addStretch()
+
+    def update_stats(self, stats: dict):
+        """Update all statistics."""
+        # Runtime
+        runtime = stats.get("runtime_seconds", 0)
+        hours = int(runtime) // 3600
+        minutes = (int(runtime) % 3600) // 60
+        seconds = int(runtime) % 60
+        self.runtime_label.setText(f"{hours}:{minutes:02d}:{seconds:02d}")
+
+        # Runs
+        runs = stats.get("runs_completed", 0)
+        success = stats.get("successful_runs", 0)
+        self.runs_label.setText(str(runs))
+        if runs > 0:
+            rate = success / runs * 100
+            self.success_label.setText(f"{rate:.0f}%")
+        self.rph_label.setText(f"{stats.get('runs_per_hour', 0):.1f}")
+
+        # Items
+        items = stats.get("items_by_rarity", {})
+        self.unique_label.setText(str(items.get("unique", 0)))
+        self.set_label.setText(str(items.get("set", 0)))
+        self.rare_label.setText(str(items.get("rare", 0)))
+        self.rune_label.setText(str(items.get("rune", 0)))
+
+        # Deaths
+        self.deaths_label.setText(str(stats.get("total_deaths", 0)))
+        self.chickens_label.setText(str(stats.get("chickens", 0)))
+
+
 class MainWindow(QMainWindow):
     """Main GUI window for D2CV bot."""
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("D2CV - Diablo 2 Bot")
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(1100, 800)
 
         # Bot state
         self.is_running = False
         self.worker: Optional[BotWorker] = None
-
-        # Stats
-        self.stats = {
-            "runs": 0,
-            "deaths": 0,
-            "items_found": 0,
-            "runtime": 0,
-        }
+        self.runtime_seconds = 0
 
         self._setup_ui()
         self._setup_timers()
@@ -60,18 +271,23 @@ class MainWindow(QMainWindow):
         """Create the UI layout."""
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QHBoxLayout(central)
+        main_layout = QHBoxLayout(central)
 
-        # Left panel - controls and stats
+        # Left panel - controls and vitals
         left_panel = QVBoxLayout()
 
         # Status
         status_group = QGroupBox("Status")
         status_layout = QVBoxLayout(status_group)
         self.status_label = QLabel("Idle")
-        self.status_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        self.status_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_layout.addWidget(self.status_label)
+
+        self.current_run_label = QLabel("")
+        self.current_run_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_layout.addWidget(self.current_run_label)
+
         left_panel.addWidget(status_group)
 
         # Controls
@@ -80,6 +296,7 @@ class MainWindow(QMainWindow):
 
         self.start_btn = QPushButton("Start Bot")
         self.start_btn.setMinimumHeight(50)
+        self.start_btn.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.start_btn.clicked.connect(self._toggle_bot)
         controls_layout.addWidget(self.start_btn)
 
@@ -89,42 +306,61 @@ class MainWindow(QMainWindow):
 
         left_panel.addWidget(controls_group)
 
-        # Stats
-        stats_group = QGroupBox("Statistics")
-        stats_layout = QGridLayout(stats_group)
-
-        self.runs_label = QLabel("0")
-        self.deaths_label = QLabel("0")
-        self.items_label = QLabel("0")
-        self.runtime_label = QLabel("0:00:00")
-
-        stats_layout.addWidget(QLabel("Runs:"), 0, 0)
-        stats_layout.addWidget(self.runs_label, 0, 1)
-        stats_layout.addWidget(QLabel("Deaths:"), 1, 0)
-        stats_layout.addWidget(self.deaths_label, 1, 1)
-        stats_layout.addWidget(QLabel("Items:"), 2, 0)
-        stats_layout.addWidget(self.items_label, 2, 1)
-        stats_layout.addWidget(QLabel("Runtime:"), 3, 0)
-        stats_layout.addWidget(self.runtime_label, 3, 1)
-
-        left_panel.addWidget(stats_group)
-
-        # Health/Mana display
+        # Vitals
         vitals_group = QGroupBox("Vitals")
-        vitals_layout = QGridLayout(vitals_group)
+        vitals_layout = QVBoxLayout(vitals_group)
 
-        self.hp_bar = QLabel("HP: ---%")
-        self.mp_bar = QLabel("MP: ---%")
+        # Health bar
+        hp_layout = QHBoxLayout()
+        hp_layout.addWidget(QLabel("HP:"))
+        self.hp_bar = QProgressBar()
+        self.hp_bar.setRange(0, 100)
+        self.hp_bar.setValue(100)
+        self.hp_bar.setFormat("%p%")
+        self.hp_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #555;
+                border-radius: 3px;
+                text-align: center;
+                background-color: #1a1a1a;
+            }
+            QProgressBar::chunk {
+                background-color: #cc3333;
+            }
+        """)
+        hp_layout.addWidget(self.hp_bar)
+        vitals_layout.addLayout(hp_layout)
 
-        vitals_layout.addWidget(self.hp_bar, 0, 0)
-        vitals_layout.addWidget(self.mp_bar, 1, 0)
+        # Mana bar
+        mp_layout = QHBoxLayout()
+        mp_layout.addWidget(QLabel("MP:"))
+        self.mp_bar = QProgressBar()
+        self.mp_bar.setRange(0, 100)
+        self.mp_bar.setValue(100)
+        self.mp_bar.setFormat("%p%")
+        self.mp_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #555;
+                border-radius: 3px;
+                text-align: center;
+                background-color: #1a1a1a;
+            }
+            QProgressBar::chunk {
+                background-color: #3366cc;
+            }
+        """)
+        mp_layout.addWidget(self.mp_bar)
+        vitals_layout.addLayout(mp_layout)
 
         left_panel.addWidget(vitals_group)
-        left_panel.addStretch()
 
-        layout.addLayout(left_panel, 1)
+        # Stats panel
+        self.stats_panel = StatsPanel()
+        left_panel.addWidget(self.stats_panel)
 
-        # Right panel - screenshot and log
+        main_layout.addLayout(left_panel, 1)
+
+        # Right panel - preview and tabs
         right_panel = QVBoxLayout()
 
         # Screenshot preview
@@ -140,19 +376,29 @@ class MainWindow(QMainWindow):
 
         right_panel.addWidget(preview_group)
 
-        # Log output
-        log_group = QGroupBox("Log")
-        log_layout = QVBoxLayout(log_group)
+        # Tabs for log, runs, items
+        tabs = QTabWidget()
 
+        # Log tab
+        log_widget = QWidget()
+        log_layout = QVBoxLayout(log_widget)
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(200)
         self.log_text.setFont(QFont("Consolas", 9))
         log_layout.addWidget(self.log_text)
+        tabs.addTab(log_widget, "Log")
 
-        right_panel.addWidget(log_group)
+        # Run history tab
+        self.run_history = RunHistoryWidget()
+        tabs.addTab(self.run_history, "Run History")
 
-        layout.addLayout(right_panel, 2)
+        # Items found tab
+        self.items_found = ItemsFoundWidget()
+        tabs.addTab(self.items_found, "Items Found")
+
+        right_panel.addWidget(tabs)
+
+        main_layout.addLayout(right_panel, 2)
 
     def _setup_timers(self):
         """Set up update timers."""
@@ -169,7 +415,9 @@ class MainWindow(QMainWindow):
     def _start_bot(self):
         """Start the bot."""
         self.is_running = True
+        self.runtime_seconds = 0
         self.start_btn.setText("Stop Bot")
+        self.start_btn.setStyleSheet("background-color: #663333;")
         self.pause_btn.setEnabled(True)
         self.status_label.setText("Running")
         self.status_label.setStyleSheet("color: #00ff00;")
@@ -180,9 +428,11 @@ class MainWindow(QMainWindow):
         """Stop the bot."""
         self.is_running = False
         self.start_btn.setText("Start Bot")
+        self.start_btn.setStyleSheet("")
         self.pause_btn.setEnabled(False)
         self.status_label.setText("Stopped")
         self.status_label.setStyleSheet("color: #ff6666;")
+        self.current_run_label.setText("")
         self.runtime_timer.stop()
 
         if self.worker:
@@ -194,11 +444,8 @@ class MainWindow(QMainWindow):
 
     def _update_runtime(self):
         """Update runtime display."""
-        self.stats["runtime"] += 1
-        hours = self.stats["runtime"] // 3600
-        minutes = (self.stats["runtime"] % 3600) // 60
-        seconds = self.stats["runtime"] % 60
-        self.runtime_label.setText(f"{hours}:{minutes:02d}:{seconds:02d}")
+        self.runtime_seconds += 1
+        self.stats_panel.update_stats({"runtime_seconds": self.runtime_seconds})
 
     def update_screenshot(self, image: np.ndarray):
         """Update the screenshot preview."""
@@ -216,38 +463,53 @@ class MainWindow(QMainWindow):
         qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
         self.preview_label.setPixmap(QPixmap.fromImage(qimg))
 
-    def update_status(self, status: str):
+    def update_status(self, status: str, current_run: str = None):
         """Update the status label."""
         self.status_label.setText(status)
+        if current_run:
+            self.current_run_label.setText(f"Current: {current_run}")
+        else:
+            self.current_run_label.setText("")
 
     def update_vitals(self, hp_percent: float, mp_percent: float):
         """Update HP/MP display."""
-        self.hp_bar.setText(f"HP: {hp_percent:.0%}")
-        self.mp_bar.setText(f"MP: {mp_percent:.0%}")
+        self.hp_bar.setValue(int(hp_percent * 100))
+        self.mp_bar.setValue(int(mp_percent * 100))
 
-        # Color based on health level
+        # Color health bar based on level
         if hp_percent < 0.3:
-            self.hp_bar.setStyleSheet("color: #ff3333;")
+            self.hp_bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #555; border-radius: 3px; text-align: center; background-color: #1a1a1a; }
+                QProgressBar::chunk { background-color: #ff3333; }
+            """)
         elif hp_percent < 0.6:
-            self.hp_bar.setStyleSheet("color: #ffaa00;")
+            self.hp_bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #555; border-radius: 3px; text-align: center; background-color: #1a1a1a; }
+                QProgressBar::chunk { background-color: #cc6633; }
+            """)
         else:
-            self.hp_bar.setStyleSheet("color: #33ff33;")
+            self.hp_bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #555; border-radius: 3px; text-align: center; background-color: #1a1a1a; }
+                QProgressBar::chunk { background-color: #cc3333; }
+            """)
 
-    def update_stats(self, runs: int = None, deaths: int = None, items: int = None):
-        """Update statistics display."""
-        if runs is not None:
-            self.stats["runs"] = runs
-            self.runs_label.setText(str(runs))
-        if deaths is not None:
-            self.stats["deaths"] = deaths
-            self.deaths_label.setText(str(deaths))
-        if items is not None:
-            self.stats["items_found"] = items
-            self.items_label.setText(str(items))
+    def update_stats(self, stats: dict):
+        """Update all statistics."""
+        self.stats_panel.update_stats(stats)
+
+    def add_run_result(self, run_data: dict):
+        """Add a completed run to history."""
+        self.run_history.add_run(run_data)
+
+    def add_item_found(self, item_data: dict):
+        """Add a found item to the list."""
+        self.items_found.add_item(item_data)
 
     def log(self, message: str):
         """Add a message to the log."""
-        self.log_text.append(message)
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.log_text.append(f"[{timestamp}] {message}")
         # Auto-scroll to bottom
         scrollbar = self.log_text.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
@@ -273,6 +535,7 @@ def run_gui():
             border-radius: 5px;
             margin-top: 10px;
             padding-top: 10px;
+            font-weight: bold;
         }
         QGroupBox::title {
             subcontrol-origin: margin;
@@ -291,12 +554,51 @@ def run_gui():
         QPushButton:pressed {
             background-color: #555;
         }
+        QPushButton:disabled {
+            background-color: #2a2a2a;
+            color: #666;
+        }
         QTextEdit {
             background-color: #1a1a1a;
             border: 1px solid #333;
         }
         QLabel {
             color: #cccccc;
+        }
+        QTabWidget::pane {
+            border: 1px solid #444;
+            background-color: #2b2b2b;
+        }
+        QTabBar::tab {
+            background-color: #333;
+            border: 1px solid #444;
+            padding: 8px 16px;
+            margin-right: 2px;
+        }
+        QTabBar::tab:selected {
+            background-color: #444;
+            border-bottom-color: #2b2b2b;
+        }
+        QTableWidget {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            gridline-color: #333;
+        }
+        QTableWidget::item {
+            padding: 4px;
+        }
+        QTableWidget::item:alternate {
+            background-color: #252525;
+        }
+        QHeaderView::section {
+            background-color: #333;
+            border: 1px solid #444;
+            padding: 4px;
+        }
+        QProgressBar {
+            border: 1px solid #555;
+            border-radius: 3px;
+            text-align: center;
         }
     """)
 
