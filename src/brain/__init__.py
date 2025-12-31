@@ -15,3 +15,7 @@ from .gemini_vision import (
     GeminiVisionClient, ItemAnalysis, ScreenAnalysis,
     get_gemini_vision
 )
+from .combat_advisor import (
+    CombatAdvisor, CombatAdvice, CombatAction, ThreatLevel,
+    SituationAnalysis, get_combat_advisor
+)
