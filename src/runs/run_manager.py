@@ -9,6 +9,8 @@ from dataclasses import dataclass
 
 from .base_run import BaseRun, RunStatus
 from .mephisto import MephistoRun
+from .andariel import AndarielRun
+from .ancient_tunnels import AncientTunnelsRun
 from src.config import get_config
 
 
@@ -28,9 +30,8 @@ class RunManager:
     # Registry of available runs
     AVAILABLE_RUNS: Dict[str, Type[BaseRun]] = {
         "mephisto": MephistoRun,
-        # Add more runs here as they're implemented
-        # "andariel": AndarielRun,
-        # "ancient_tunnels": AncientTunnelsRun,
+        "andariel": AndarielRun,
+        "ancient_tunnels": AncientTunnelsRun,
     }
 
     def __init__(self, **run_dependencies):
