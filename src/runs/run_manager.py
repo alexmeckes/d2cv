@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from .base_run import BaseRun, RunStatus
 from .mephisto import MephistoRun
+from .mephisto_gemini import MephistoGeminiRun
 from .andariel import AndarielRun
 from .ancient_tunnels import AncientTunnelsRun
 from src.config import get_config
@@ -30,6 +31,7 @@ class RunManager:
     # Registry of available runs
     AVAILABLE_RUNS: Dict[str, Type[BaseRun]] = {
         "mephisto": MephistoRun,
+        "mephisto_gemini": MephistoGeminiRun,  # Gemini-powered version
         "andariel": AndarielRun,
         "ancient_tunnels": AncientTunnelsRun,
     }
