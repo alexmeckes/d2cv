@@ -3,6 +3,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from dataclasses import dataclass, field
 
+# Load .env file for API keys
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on system env vars
+
 
 @dataclass
 class ThresholdConfig:
