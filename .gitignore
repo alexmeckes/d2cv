@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug
+debug/
+debug_screenshot.png
+*.log
+
+# Config secrets
+.env
+config/credentials.yaml
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Templates (large binary files - optional)
+# assets/templates/
+
+# Cache
+.cache/
+*.cache

@@ -1,0 +1,72 @@
+# D2CV Bot Configuration
+
+# Game window settings
+window:
+  expected_width: 1280
+  expected_height: 720
+
+# Character build
+character:
+  class: sorceress
+  build: blizzard
+  skills:
+    left_click: ice_blast
+    right_click: blizzard
+    teleport: f1
+    frozen_armor: f2
+
+# Health/Mana thresholds
+thresholds:
+  health_potion: 0.5      # Use HP potion below 50%
+  mana_potion: 0.3        # Use mana potion below 30%
+  chicken: 0.2            # Emergency town portal below 20%
+  merc_health_potion: 0.4 # Heal merc below 40%
+
+# Belt potion slots (1-4 from left to right)
+belt:
+  slot_1: health          # Key "1" - health potions
+  slot_2: health          # Key "2" - health potions
+  slot_3: mana            # Key "3" - mana potions
+  slot_4: mana            # Key "4" - mana potions
+
+# Farming runs to perform (in order)
+runs:
+  enabled:
+    - mephisto
+    - andariel
+    - ancient_tunnels
+  randomize: false
+  max_deaths_per_run: 3
+
+# Pickit settings
+pickit:
+  show_item_filter_overlay: true
+  pickup_gold: true
+  min_gold_amount: 5000
+  # See config/pickit.yaml for item rules
+
+# LLM settings
+llm:
+  enabled: true
+  model: gpt-4o
+  evaluate_items: true
+  evaluate_uniques: true
+  evaluate_rares: true
+  evaluate_sets: true
+  max_tokens: 500
+  cache_evaluations: true
+
+# Timing (in seconds)
+timing:
+  loop_delay: 0.05        # Main loop delay
+  after_teleport: 0.1     # Wait after teleporting
+  after_cast: 0.3         # Wait after casting blizzard
+  after_pickup: 0.1       # Wait after picking up item
+  town_wait: 0.5          # Wait in town before next run
+
+# Debug/development
+debug:
+  save_screenshots: false
+  screenshot_dir: "./debug/screenshots"
+  show_detection_overlay: true
+  verbose_logging: false

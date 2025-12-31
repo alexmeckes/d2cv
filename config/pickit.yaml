@@ -1,0 +1,71 @@
+# D2CV Pickit Rules
+# Items matching these rules will be picked up
+
+# Always pick up these item types
+always_pickup:
+  - rune           # All runes
+  - unique         # All unique items (gold text)
+  - set            # All set items (green text)
+  - charm          # All charms (evaluate with LLM)
+
+# Rune filter (by name - always pick these)
+runes:
+  min_rune: ral    # Minimum rune to pick (ral and above)
+  # Rune order: el, eld, tir, nef, eth, ith, tal, ral, ort, thul,
+  #             amn, sol, shael, dol, hel, io, lum, ko, fal, lem,
+  #             pul, um, mal, ist, gul, vex, ohm, lo, sur, ber, jah, cham, zod
+
+# Rare item filters (yellow text)
+rares:
+  pickup: true
+  evaluate_with_llm: true
+  # Only pick rares of these types
+  types:
+    - circlet
+    - coronet
+    - diadem
+    - amulet
+    - ring
+    - boots
+    - gloves
+    - belt
+
+# Magic item filters (blue text)
+magic:
+  pickup: false
+  # Exceptions - always pick these magic items
+  exceptions:
+    - grand_charm
+    - small_charm
+
+# White/gray items
+normal:
+  pickup: false
+  # Exceptions - pick elite bases for runewords
+  exceptions:
+    - monarch          # Spirit base
+    - archon_plate     # Enigma base
+    - dusk_shroud      # Various RW bases
+    - mage_plate       # Various RW bases
+
+# Gems
+gems:
+  pickup: true
+  min_quality: flawless  # Only flawless and perfect
+
+# Jewelry
+jewelry:
+  rings: true
+  amulets: true
+
+# Potions (for belt refill)
+potions:
+  health: true
+  mana: true
+  rejuvenation: true
+  min_potion_quality: greater  # greater or full rejuvs only
+
+# Gold
+gold:
+  pickup: true
+  min_amount: 5000  # Only pick up stacks >= this amount

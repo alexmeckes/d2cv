@@ -1,0 +1,21 @@
+# D2CV - Diablo 2 Computer Vision Bot
+# Core
+opencv-python>=4.8.0
+numpy>=1.24.0
+mss>=9.0.0
+pydirectinput>=1.0.4
+PyYAML>=6.0
+pywin32>=306
+
+# LLM
+openai>=1.0.0
+
+# OCR
+easyocr>=1.7.0
+
+# GUI
+PyQt6>=6.5.0
+
+# Utils
+Pillow>=10.0.0
+python-dotenv>=1.0.0
