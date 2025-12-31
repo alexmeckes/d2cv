@@ -123,6 +123,27 @@ class CombatAdvisor:
         """Check if enough time has passed for another call."""
         return time.time() - self.last_call_time >= self.min_call_interval
 
+    def _get_build_tips(self) -> str:
+        """Get build-specific tips for the prompt."""
+        if self.build == "elemental_druid":
+            return """For elemental_druid (Volcano + Armageddon):
+- FIRE immunes are dangerous (can't kill them) - SKIP these packs
+- Stay CLOSE to enemies (Armageddon auto-casts meteors around you)
+- No need to kite much - Oak Sage provides HP buffer
+- Cast Volcano on pack centers for max AoE
+- Chicken if health critically low"""
+        elif self.build == "blizzard":
+            return """For blizzard sorceress:
+- COLD immunes are dangerous (can't kill them) - SKIP these packs
+- Maintain distance, kite if enemies get close
+- Use terrain/moat trick for bosses if possible
+- Chicken (emergency exit) if health critically low"""
+        else:
+            return """General tips:
+- Watch for immune monsters matching your damage type
+- Maintain safe distance from melee enemies
+- Chicken (emergency exit) if health critically low"""
+
     def get_combat_advice(
         self,
         screenshot: np.ndarray,
@@ -175,6 +196,9 @@ class CombatAdvisor:
         if mana_percent is not None:
             context += f"Mana: {mana_percent:.0%}. "
 
+        # Build-specific tips
+        build_tips = self._get_build_tips()
+
         prompt = f"""Analyze this Diablo 2 combat situation for a {self.build} {self.character_class}.
 
 {context}
@@ -186,17 +210,13 @@ Return JSON:
     "reasoning": "brief explanation",
     "enemy_count": number,
     "boss_present": true/false,
-    "immunities_detected": ["cold", "lightning", etc] or [],
+    "immunities_detected": ["cold", "fire", "lightning", etc] or [],
     "positioning_tip": "stay at range / teleport behind / etc",
     "priority_target": "target description or null",
     "confidence": 0.0-1.0
 }}
 
-For {self.build} {self.character_class}:
-- Cold immunes are dangerous (can't kill them)
-- Maintain distance, kite if enemies get close
-- Use terrain/moat trick for bosses if possible
-- Chicken (emergency exit) if health critically low
+{build_tips}
 
 Be concise and actionable."""
 
@@ -339,10 +359,23 @@ Be accurate about health/mana orb fill levels."""
             return True, advice.reasoning
         elif advice.recommended_action == CombatAction.SKIP:
             return False, advice.reasoning
-        elif "cold" in advice.immunities_detected:
-            return False, "Cold immune enemies detected"
+
+        # Check for immunity matching our damage type
+        dominated_immunes = self._get_dangerous_immunities()
+        for immunity in dominated_immunes:
+            if immunity in advice.immunities_detected:
+                return False, f"{immunity.capitalize()} immune enemies detected"
+
+        return True, "Default: engage"
+
+    def _get_dangerous_immunities(self) -> List[str]:
+        """Get immunities that are dangerous for our build."""
+        if self.build == "elemental_druid":
+            return ["fire"]
+        elif self.build == "blizzard":
+            return ["cold"]
         else:
-            return True, "Default: engage"
+            return []
 
     def should_retreat(self, screenshot: np.ndarray, health_percent: float) -> Tuple[bool, str]:
         """Quick check: should we retreat?

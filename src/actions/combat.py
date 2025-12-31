@@ -260,9 +260,25 @@ class CombatController:
         self.input = input_ctrl or InputController()
         self.config = get_config()
 
-        # Initialize build-specific controller
-        # TODO: Make this configurable based on character class
-        self.build = BlizzardSorc(self.input)
+        # Initialize build-specific controller based on config
+        build_type = self.config.get("character.build", "blizzard")
+        self.build = self._create_build(build_type)
+
+    def _create_build(self, build_type: str):
+        """Create the appropriate build controller.
+
+        Args:
+            build_type: Build name from config
+
+        Returns:
+            Build-specific combat controller
+        """
+        if build_type == "elemental_druid":
+            from .builds import ElementalDruid
+            return ElementalDruid(self.input)
+        else:
+            # Default to Blizzard Sorc
+            return BlizzardSorc(self.input)
 
     def attack(self, x: int, y: int, is_boss: bool = False) -> None:
         """Attack a target."""

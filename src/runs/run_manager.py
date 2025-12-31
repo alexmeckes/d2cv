@@ -12,6 +12,7 @@ from .mephisto import MephistoRun
 from .mephisto_gemini import MephistoGeminiRun
 from .andariel import AndarielRun
 from .ancient_tunnels import AncientTunnelsRun
+from .cow_level import CowLevelRun
 from src.config import get_config
 
 
@@ -34,6 +35,7 @@ class RunManager:
         "mephisto_gemini": MephistoGeminiRun,  # Gemini-powered version
         "andariel": AndarielRun,
         "ancient_tunnels": AncientTunnelsRun,
+        "cow_level": CowLevelRun,
     }
 
     def __init__(self, **run_dependencies):
