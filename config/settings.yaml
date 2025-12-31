@@ -46,7 +46,8 @@ belt:
   slot_4: mana            # Key "4" - mana potions
 
 # Farming runs to perform (in order)
-# Available runs: mephisto, mephisto_gemini, andariel, ancient_tunnels, cow_level
+# Available runs: mephisto, mephisto_gemini, andariel, ancient_tunnels, cow_level, freeform_clear
+# freeform_clear: Route-independent - just kills anything visible (works anywhere)
 runs:
   enabled:
     - mephisto

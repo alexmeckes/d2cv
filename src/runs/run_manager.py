@@ -13,6 +13,7 @@ from .mephisto_gemini import MephistoGeminiRun
 from .andariel import AndarielRun
 from .ancient_tunnels import AncientTunnelsRun
 from .cow_level import CowLevelRun
+from .freeform_clear import FreeformClearRun
 from src.config import get_config
 
 
@@ -36,6 +37,7 @@ class RunManager:
         "andariel": AndarielRun,
         "ancient_tunnels": AncientTunnelsRun,
         "cow_level": CowLevelRun,
+        "freeform_clear": FreeformClearRun,  # Route-independent - kill anything visible
     }
 
     def __init__(self, **run_dependencies):
