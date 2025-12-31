@@ -25,6 +25,7 @@ except ImportError:
 
 from src.config import get_config
 from src.state.session_logger import get_logger
+from src.brain.performance_monitor import record_gemini_call
 
 
 @dataclass
@@ -183,6 +184,13 @@ class GeminiVisionClient:
         if use_cache:
             cached = self._check_cache(cache_key)
             if cached:
+                record_gemini_call(
+                    call_type="vision",
+                    latency_ms=0,
+                    cached=True,
+                    success=True,
+                    tokens=0,
+                )
                 return cached
 
         self.total_calls += 1
@@ -225,16 +233,33 @@ class GeminiVisionClient:
             # Cache successful response
             self._store_cache(cache_key, result)
 
+            # Record for performance monitoring
+            record_gemini_call(
+                call_type="vision",
+                latency_ms=latency,
+                cached=False,
+                success=True,
+                tokens=tokens,
+            )
+
             self.logger.debug(f"Gemini call: {latency:.0f}ms, ~{tokens} tokens")
 
             return result
 
         except Exception as e:
+            latency = (time.time() - start_time) * 1000
+            record_gemini_call(
+                call_type="vision",
+                latency_ms=latency,
+                cached=False,
+                success=False,
+                tokens=0,
+            )
             self.logger.error(f"Gemini call failed: {e}")
             return VisionResponse(
                 content={"error": str(e)},
                 raw_text=str(e),
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=latency,
             )
 
     def _parse_json_response(self, text: str) -> Dict[str, Any]:

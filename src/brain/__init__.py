@@ -23,3 +23,7 @@ from .navigation_advisor import (
     NavigationAdvisor, NavigationAdvice, NavigationTarget,
     Direction, MapAnalysis, get_navigation_advisor
 )
+from .performance_monitor import (
+    PerformanceMonitor, LatencyStats,
+    get_performance_monitor, record_gemini_call
+)
