@@ -12,6 +12,7 @@ from src.capture import ScreenCapture
 from src.vision import GameStateDetector, ItemDetector, EnemyDetector, VitalsState
 from src.actions import InputController, CombatController, MovementController, TownController
 from src.brain import ReactiveBrain, Action
+from src.brain.item_evaluator import ItemEvaluator
 from src.state import SessionStats
 
 
@@ -51,6 +52,7 @@ class BaseRun(ABC):
         enemy_detector: EnemyDetector,
         brain: ReactiveBrain,
         stats: SessionStats,
+        item_evaluator: Optional[ItemEvaluator] = None,
     ):
         self.screen = screen
         self.input = input_ctrl
@@ -62,6 +64,7 @@ class BaseRun(ABC):
         self.enemy_detector = enemy_detector
         self.brain = brain
         self.stats = stats
+        self.item_evaluator = item_evaluator
 
         # Run state
         self.status = RunStatus.NOT_STARTED
@@ -222,6 +225,8 @@ class BaseRun(ABC):
     def pick_up_items(self, max_items: int = 20) -> int:
         """Pick up items on ground.
 
+        Uses item_evaluator if available for smarter pickup decisions.
+
         Returns:
             Number of items picked up
         """
@@ -244,33 +249,62 @@ class BaseRun(ABC):
 
             items = self.item_detector.detect_items(screenshot.image)
 
-            # Filter to valuable items
-            valuable_items = [
-                item for item in items
-                if item.rarity.value in ("unique", "set", "rare", "rune")
-            ]
-
-            if not valuable_items:
-                # Also check for gold
+            if not items:
+                # Check for gold
                 gold = self.item_detector.detect_gold(screenshot.image)
                 if gold:
-                    valuable_items = gold[:3]  # Pick up a few gold piles
+                    items = gold[:3]
 
-            if not valuable_items:
+            if not items:
                 break
 
-            # Pick up first item
-            item = valuable_items[0]
-            self.input.click(item.center[0], item.center[1], relative=True)
-            time.sleep(0.2)
+            # Use item evaluator if available
+            if self.item_evaluator:
+                pickup_list = self.item_evaluator.get_pickup_list(
+                    items,
+                    screenshot.image,
+                    max_items=5
+                )
+                if not pickup_list:
+                    break
 
-            self.items_found.append(item.rarity.value)
-            self.stats.record_item(
-                name=item.name or "Unknown",
-                rarity=item.rarity.value,
-                area=self.config.name,
-            )
-            picked += 1
+                # Pick up the highest priority item
+                eval_item = pickup_list[0]
+                item = eval_item.detected
+                item_name = eval_item.name or item.rarity.value
+
+                self.input.click(item.center[0], item.center[1], relative=True)
+                time.sleep(0.2)
+
+                self.items_found.append(item.rarity.value)
+                self.stats.record_item(
+                    name=item_name,
+                    rarity=item.rarity.value,
+                    area=self.config.name,
+                    llm_evaluation=eval_item.evaluation.reason if eval_item.evaluation else None,
+                )
+                picked += 1
+            else:
+                # Fallback: simple rarity filter
+                valuable_items = [
+                    item for item in items
+                    if item.rarity.value in ("unique", "set", "rare", "rune")
+                ]
+
+                if not valuable_items:
+                    break
+
+                item = valuable_items[0]
+                self.input.click(item.center[0], item.center[1], relative=True)
+                time.sleep(0.2)
+
+                self.items_found.append(item.rarity.value)
+                self.stats.record_item(
+                    name=item.name or "Unknown",
+                    rarity=item.rarity.value,
+                    area=self.config.name,
+                )
+                picked += 1
 
         # Release alt
         self.input.show_items(hold=False)

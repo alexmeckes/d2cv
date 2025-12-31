@@ -14,7 +14,8 @@ from src.vision import (
     TemplateMatcher, GameOCR
 )
 from src.actions import InputController, CombatController, MovementController, TownController
-from src.brain import ReactiveBrain
+from src.brain import ReactiveBrain, DeliberativeBrain, get_deliberative_brain
+from src.brain.item_evaluator import ItemEvaluator
 from src.state import SessionStats, BotStateMachine, BotState
 from src.runs.run_manager import RunManager, RunResult
 
@@ -59,6 +60,13 @@ class D2Bot:
         # Brain
         self.brain = ReactiveBrain()
 
+        # LLM-powered brain (lazy loaded)
+        self._deliberative_brain: Optional[DeliberativeBrain] = None
+        self.item_evaluator = ItemEvaluator(
+            ocr=self.ocr,
+            use_llm=self.config.llm.enabled,
+        )
+
         # State
         self.stats = SessionStats()
         self.state_machine = BotStateMachine()
@@ -75,6 +83,7 @@ class D2Bot:
             enemy_detector=self.enemy_detector,
             brain=self.brain,
             stats=self.stats,
+            item_evaluator=self.item_evaluator,
         )
 
         # Threading
@@ -89,6 +98,13 @@ class D2Bot:
 
         # Start time
         self._start_time = 0
+
+    @property
+    def deliberative_brain(self) -> DeliberativeBrain:
+        """Lazy-load deliberative brain."""
+        if self._deliberative_brain is None:
+            self._deliberative_brain = get_deliberative_brain()
+        return self._deliberative_brain
 
     def initialize(self) -> bool:
         """Initialize bot and verify game is running.
